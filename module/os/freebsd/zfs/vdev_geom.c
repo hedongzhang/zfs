@@ -199,7 +199,6 @@ vdev_geom_orphan(struct g_consumer *cp)
 	 * async removal support to invoke a close on this
 	 * vdev once it is safe to do so.
 	 */
-	// cppcheck-suppress All
 	SLIST_FOREACH(elem, priv, elems) {
 		// cppcheck-suppress uninitvar
 		vdev_t *vd = elem->vd;
@@ -1099,6 +1098,10 @@ static int
 vdev_geom_check_unmapped(zio_t *zio, struct g_consumer *cp)
 {
 	struct vdev_geom_check_unmapped_cb_state s;
+
+	/* If unmapped I/O is administratively disabled, respect that. */
+	if (!unmapped_buf_allowed)
+		return (0);
 
 	/* If the buffer is already linear, then nothing to do here. */
 	if (abd_is_linear(zio->io_abd))

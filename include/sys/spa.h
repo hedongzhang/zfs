@@ -792,7 +792,8 @@ extern int spa_vdev_attach(spa_t *spa, uint64_t guid, nvlist_t *nvroot,
     int replacing, int rebuild);
 extern int spa_vdev_detach(spa_t *spa, uint64_t guid, uint64_t pguid,
     int replace_done);
-extern int spa_vdev_remove(spa_t *spa, uint64_t guid, boolean_t unspare);
+extern int spa_vdev_alloc(spa_t *spa, uint64_t guid);
+extern int spa_vdev_noalloc(spa_t *spa, uint64_t guid);
 extern boolean_t spa_vdev_remove_active(spa_t *spa);
 extern int spa_vdev_initialize(spa_t *spa, nvlist_t *nv, uint64_t cmd_type,
     nvlist_t *vdev_errlist);
@@ -1075,6 +1076,7 @@ extern void spa_upgrade(spa_t *spa, uint64_t version);
 extern void spa_evict_all(void);
 extern vdev_t *spa_lookup_by_guid(spa_t *spa, uint64_t guid,
     boolean_t l2cache);
+extern boolean_t spa_has_l2cache(spa_t *, uint64_t guid);
 extern boolean_t spa_has_spare(spa_t *, uint64_t guid);
 extern uint64_t dva_get_dsize_sync(spa_t *spa, const dva_t *dva);
 extern uint64_t bp_get_dsize_sync(spa_t *spa, const blkptr_t *bp);
@@ -1170,6 +1172,8 @@ extern void spa_configfile_set(spa_t *, nvlist_t *, boolean_t);
 /* asynchronous event notification */
 extern void spa_event_notify(spa_t *spa, vdev_t *vdev, nvlist_t *hist_nvl,
     const char *name);
+extern void zfs_ereport_zvol_post(const char *subclass, const char *name,
+    const char *device_name, const char *raw_name);
 
 /* waiting for pool activities to complete */
 extern int spa_wait(const char *pool, zpool_wait_activity_t activity,
@@ -1203,6 +1207,9 @@ extern int zfs_deadman_enabled;
 extern unsigned long zfs_deadman_synctime_ms;
 extern unsigned long zfs_deadman_ziotime_ms;
 extern unsigned long zfs_deadman_checktime_ms;
+
+extern kmem_cache_t *zio_buf_cache[];
+extern kmem_cache_t *zio_data_buf_cache[];
 
 #ifdef	__cplusplus
 }

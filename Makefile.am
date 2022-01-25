@@ -114,6 +114,11 @@ commitcheck:
 		${top_srcdir}/scripts/commitcheck.sh; \
 	fi
 
+if HAVE_PARALLEL
+cstyle_line = -print0 | parallel -X0 ${top_srcdir}/scripts/cstyle.pl -cpP {}
+else
+cstyle_line = -exec ${top_srcdir}/scripts/cstyle.pl -cpP {} +
+endif
 PHONY += cstyle
 cstyle:
 	@find ${top_srcdir} -name build -prune \
@@ -121,7 +126,8 @@ cstyle:
 		! -name 'zfs_config.*' ! -name '*.mod.c' \
 		! -name 'opt_global.h' ! -name '*_if*.h' \
 		! -path './module/zstd/lib/*' \
-		-exec ${top_srcdir}/scripts/cstyle.pl -cpP {} \+
+		! -path './module/zfs/lz4.c' \
+		$(cstyle_line)
 
 filter_executable = -exec test -x '{}' \; -print
 
@@ -129,10 +135,21 @@ SHELLCHECKDIRS = cmd contrib etc scripts tests
 SHELLCHECKSCRIPTS = autogen.sh
 
 PHONY += checkabi storeabi
-checkabi: lib
+
+checklibabiversion:
+	libabiversion=`abidw -v | $(SED) 's/[^0-9]//g'`; \
+	if test $$libabiversion -lt "200"; then \
+        /bin/echo -e "\n" \
+        "*** Please use libabigail 2.0.0 version or newer;\n" \
+        "*** otherwise results are not consistent!\n" \
+        "(or see https://github.com/openzfs/libabigail-docker )\n"; \
+        exit 1; \
+    fi;
+
+checkabi: checklibabiversion lib
 	$(MAKE) -C lib checkabi
 
-storeabi: lib
+storeabi: checklibabiversion lib
 	$(MAKE) -C lib storeabi
 
 PHONY += mancheck

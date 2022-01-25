@@ -492,7 +492,7 @@ extern taskq_t	*taskq_create(const char *, int, pri_t, int, int, uint_t);
 #define	taskq_create_proc(a, b, c, d, e, p, f) \
 	    (taskq_create(a, b, c, d, e, f))
 #define	taskq_create_sysdc(a, b, d, e, p, dc, f) \
-	    (taskq_create(a, b, maxclsyspri, d, e, f))
+	    ((void) sizeof (dc), taskq_create(a, b, maxclsyspri, d, e, f))
 extern taskqid_t taskq_dispatch(taskq_t *, task_func_t, void *, uint_t);
 extern taskqid_t taskq_dispatch_delay(taskq_t *, task_func_t, void *, uint_t,
     clock_t);
@@ -766,7 +766,6 @@ extern void spl_fstrans_unmark(fstrans_cookie_t);
 extern int __spl_pf_fstrans_check(void);
 extern int kmem_cache_reap_active(void);
 
-#define	____cacheline_aligned
 
 /*
  * Kernel modules

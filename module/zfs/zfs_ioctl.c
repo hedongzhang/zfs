@@ -38,7 +38,7 @@
  * Copyright (c) 2017 Open-E, Inc. All Rights Reserved.
  * Copyright (c) 2019 Datto Inc.
  * Copyright (c) 2019, 2020 by Christian Schwarz. All rights reserved.
- * Copyright (c) 2019, Klara Inc.
+ * Copyright (c) 2019, 2021, Klara Inc.
  * Copyright (c) 2019, Allan Jude
  */
 
@@ -222,7 +222,7 @@
 #include <sys/zfs_ioctl_impl.h>
 
 kmutex_t zfsdev_state_lock;
-zfsdev_state_t *zfsdev_state_list;
+static zfsdev_state_t *zfsdev_state_list;
 
 /*
  * Limit maximum nvlist size.  We don't want users passing in insane values
@@ -236,7 +236,7 @@ unsigned long zfs_max_nvlist_src_size = 0;
  * the logged size to this many bytes.  This must be less than DMU_MAX_ACCESS.
  * This applies primarily to zfs_ioc_channel_program().
  */
-unsigned long zfs_history_output_max = 1024 * 1024;
+static unsigned long zfs_history_output_max = 1024 * 1024;
 
 uint_t zfs_fsyncer_key;
 uint_t zfs_allow_log_key;
@@ -2978,6 +2978,96 @@ zfs_ioc_pool_get_props(zfs_cmd_t *zc)
 		error = SET_ERROR(EFAULT);
 
 	nvlist_free(nvp);
+	return (error);
+}
+
+/*
+ * innvl: {
+ *     "vdevprops_set_vdev" -> guid
+ *     "vdevprops_set_props" -> { prop -> value }
+ * }
+ *
+ * outnvl: propname -> error code (int32)
+ */
+static const zfs_ioc_key_t zfs_keys_vdev_set_props[] = {
+	{ZPOOL_VDEV_PROPS_SET_VDEV,	DATA_TYPE_UINT64,	0},
+	{ZPOOL_VDEV_PROPS_SET_PROPS,	DATA_TYPE_NVLIST,	0}
+};
+
+static int
+zfs_ioc_vdev_set_props(const char *poolname, nvlist_t *innvl, nvlist_t *outnvl)
+{
+	spa_t *spa;
+	int error;
+	vdev_t *vd;
+	uint64_t vdev_guid;
+
+	/* Early validation */
+	if (nvlist_lookup_uint64(innvl, ZPOOL_VDEV_PROPS_SET_VDEV,
+	    &vdev_guid) != 0)
+		return (SET_ERROR(EINVAL));
+
+	if (outnvl == NULL)
+		return (SET_ERROR(EINVAL));
+
+	if ((error = spa_open(poolname, &spa, FTAG)) != 0)
+		return (error);
+
+	ASSERT(spa_writeable(spa));
+
+	if ((vd = spa_lookup_by_guid(spa, vdev_guid, B_TRUE)) == NULL) {
+		spa_close(spa, FTAG);
+		return (SET_ERROR(ENOENT));
+	}
+
+	error = vdev_prop_set(vd, innvl, outnvl);
+
+	spa_close(spa, FTAG);
+
+	return (error);
+}
+
+/*
+ * innvl: {
+ *     "vdevprops_get_vdev" -> guid
+ *     (optional) "vdevprops_get_props" -> { propname -> propid }
+ * }
+ *
+ * outnvl: propname -> value
+ */
+static const zfs_ioc_key_t zfs_keys_vdev_get_props[] = {
+	{ZPOOL_VDEV_PROPS_GET_VDEV,	DATA_TYPE_UINT64,	0},
+	{ZPOOL_VDEV_PROPS_GET_PROPS,	DATA_TYPE_NVLIST,	ZK_OPTIONAL}
+};
+
+static int
+zfs_ioc_vdev_get_props(const char *poolname, nvlist_t *innvl, nvlist_t *outnvl)
+{
+	spa_t *spa;
+	int error;
+	vdev_t *vd;
+	uint64_t vdev_guid;
+
+	/* Early validation */
+	if (nvlist_lookup_uint64(innvl, ZPOOL_VDEV_PROPS_GET_VDEV,
+	    &vdev_guid) != 0)
+		return (SET_ERROR(EINVAL));
+
+	if (outnvl == NULL)
+		return (SET_ERROR(EINVAL));
+
+	if ((error = spa_open(poolname, &spa, FTAG)) != 0)
+		return (error);
+
+	if ((vd = spa_lookup_by_guid(spa, vdev_guid, B_TRUE)) == NULL) {
+		spa_close(spa, FTAG);
+		return (SET_ERROR(ENOENT));
+	}
+
+	error = vdev_prop_get(vd, innvl, outnvl);
+
+	spa_close(spa, FTAG);
+
 	return (error);
 }
 
@@ -6005,10 +6095,6 @@ zfs_ioc_share(zfs_cmd_t *zc)
 	return (SET_ERROR(ENOSYS));
 }
 
-ace_t full_access[] = {
-	{(uid_t)-1, ACE_ALL_PERMS, ACE_EVERYONE, 0}
-};
-
 /*
  * inputs:
  * zc_name		name of containing filesystem
@@ -7106,6 +7192,16 @@ zfs_ioctl_init(void)
 	    zfs_ioc_get_bootenv, zfs_secpolicy_none, POOL_NAME,
 	    POOL_CHECK_SUSPENDED, B_FALSE, B_TRUE,
 	    zfs_keys_get_bootenv, ARRAY_SIZE(zfs_keys_get_bootenv));
+
+	zfs_ioctl_register("zpool_vdev_get_props", ZFS_IOC_VDEV_GET_PROPS,
+	    zfs_ioc_vdev_get_props, zfs_secpolicy_read, POOL_NAME,
+	    POOL_CHECK_NONE, B_FALSE, B_FALSE, zfs_keys_vdev_get_props,
+	    ARRAY_SIZE(zfs_keys_vdev_get_props));
+
+	zfs_ioctl_register("zpool_vdev_set_props", ZFS_IOC_VDEV_SET_PROPS,
+	    zfs_ioc_vdev_set_props, zfs_secpolicy_config, POOL_NAME,
+	    POOL_CHECK_SUSPENDED | POOL_CHECK_READONLY, B_FALSE, B_FALSE,
+	    zfs_keys_vdev_set_props, ARRAY_SIZE(zfs_keys_vdev_set_props));
 
 	/* IOCTLS that use the legacy function signature */
 

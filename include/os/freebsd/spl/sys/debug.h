@@ -133,14 +133,20 @@ void spl_dumpstack(void);
  */
 #ifdef NDEBUG
 
-#define	ASSERT(x)		((void)0)
-#define	ASSERT3B(x,y,z)		((void)0)
-#define	ASSERT3S(x,y,z)		((void)0)
-#define	ASSERT3U(x,y,z)		((void)0)
-#define	ASSERT3P(x,y,z)		((void)0)
-#define	ASSERT0(x)		((void)0)
-#define	IMPLY(A, B)		((void)0)
-#define	EQUIV(A, B)		((void)0)
+#define	ASSERT(x)		((void) sizeof ((uintptr_t)(x)))
+#define	ASSERT3B(x, y, z)						\
+	((void) sizeof ((uintptr_t)(x)), (void) sizeof ((uintptr_t)(z)))
+#define	ASSERT3S(x, y, z)						\
+	((void) sizeof ((uintptr_t)(x)), (void) sizeof ((uintptr_t)(z)))
+#define	ASSERT3U(x, y, z)						\
+	((void) sizeof ((uintptr_t)(x)), (void) sizeof ((uintptr_t)(z)))
+#define	ASSERT3P(x, y, z)						\
+	((void) sizeof ((uintptr_t)(x)), (void) sizeof ((uintptr_t)(z)))
+#define	ASSERT0(x)		((void) sizeof ((uintptr_t)(x)))
+#define	IMPLY(A, B)							\
+	((void) sizeof ((uintptr_t)(A)), (void) sizeof ((uintptr_t)(B)))
+#define	EQUIV(A, B)		\
+	((void) sizeof ((uintptr_t)(A)), (void) sizeof ((uintptr_t)(B)))
 
 /*
  * Debugging enabled (--enable-debug)
